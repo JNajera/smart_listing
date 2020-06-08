@@ -240,7 +240,6 @@ module SmartListing
           list = build_list(options: options)
 
           list.setup({ "users_smart_listing" => { page: 3 } }, {})
-
           expect(list.page).to eq 2
         end
       end

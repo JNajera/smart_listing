@@ -1,27 +1,13 @@
 require 'smart_listing/config'
 require "smart_listing/engine"
-require "kaminari"
-
-# Fix parsing nested params
-module Kaminari
-  module Helpers
-    class Tag
-      def page_url_for(page)
-        @template.url_for @params.deep_merge(page_param(page)).merge(:only_path => true)
-      end
-
-      private
-
-      def page_param(page)
-        Rack::Utils.parse_nested_query("#{@param_name}=#{page <= 1 ? nil : page}").symbolize_keys
-      end
-    end
-  end
-end
+require 'pagy'
+require 'pagy/extras/array'
 
 module SmartListing
   class Base
-    attr_reader :name, :collection, :options, :per_page, :sort, :page, :partial, :count, :params
+    include Pagy::Backend
+
+    attr_reader :name, :collection, :options, :per_page, :sort, :page, :partial, :count, :params, :pagy_collection
     # Params that should not be visible in pagination links (pages, per-page, sorting, etc.)
     UNSAFE_PARAMS = [:authenticity_token, :commit, :utf8, :_method, :script_name].freeze
     # For fast-check, like:
@@ -31,6 +17,7 @@ module SmartListing
 
     def initialize name, collection, options = {}
       @name = name
+      @pagy_collection = nil
 
       config_profile = options.delete(:config_profile)
 
@@ -56,7 +43,7 @@ module SmartListing
       @params = @params.with_indifferent_access
       @params.except!(*UNSAFE_PARAMS)
 
-      @page = get_param :page
+      @page = params[:page]
       @per_page = !get_param(:per_page) || get_param(:per_page).empty? ? (@options[:memorize_per_page] && get_param(:per_page, cookies).to_i > 0 ? get_param(:per_page, cookies).to_i : page_sizes.first) : get_param(:per_page).to_i
       @per_page = page_sizes.first unless page_sizes.include?(@per_page) || (unlimited_per_page? && @per_page == 0)
 
@@ -76,6 +63,9 @@ module SmartListing
         end
       end
 
+      # Prevent Pagy to break
+      @page = 1 if @page.to_i.zero?
+      
       if @options[:array]
         if @sort && !@sort.empty? # when array we sort only by first attribute
           i = sort_keys.index{|x| x[0] == @sort.to_h.first[0]}
@@ -101,18 +91,14 @@ module SmartListing
           end
         end
         if @options[:paginate] && @per_page > 0
-          @collection = ::Kaminari.paginate_array(@collection).page(@page).per(@per_page)
-          if @collection.length == 0
-            @collection = @collection.page(@collection.total_pages)
-          end
+          @pagy_collection, @collection = pagy_array(@collection, page: @page, items: @per_page, link_extra: (remote? ? 'data-remote="true"' : ''))
         end
       else
         # let's sort by all attributes
-        #
         @collection = @collection.order(sort_keys.collect{|s| "#{s[1]} #{@sort[s[0]]}" if @sort[s[0]]}.compact) if @sort && !@sort.empty?
 
         if @options[:paginate] && @per_page > 0
-          @collection = @collection.page(@page).per(@per_page)
+          @pagy_collection, @collection = pagy(@collection, page: @page, items: @per_page, link_extra: (remote? ? 'data-remote="true"' : ''))
         end
       end
     end
@@ -153,8 +139,8 @@ module SmartListing
       @options[:page_sizes]
     end
 
-    def kaminari_options
-      @options[:kaminari_options]
+    def pagy_options
+      @options[:pagy_options]
     end
 
     def sort_dirs
@@ -207,7 +193,8 @@ module SmartListing
         return sort if sort_params.blank?
 
         sort_params.map do |attr, dir|
-          key = attr.to_s if @options[:array] || @collection.klass.attribute_method?(attr)
+          attr_check = attr.to_s.squish.split(/\./, 2).last
+          key = attr.to_s if @options[:array] || @collection.klass.attribute_method?(attr_check)
           if key && ALLOWED_DIRECTIONS[dir.to_s]
             sort ||= {}
             sort[key] = dir.to_s

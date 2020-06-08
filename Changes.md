@@ -1,3 +1,8 @@
+1.2.4
+-----------
+
+- Migrate Kaminari to Pagy for faster pagination
+
 1.2.3
 -----------
 

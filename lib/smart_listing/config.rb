@@ -19,7 +19,6 @@ module SmartListing
     DEFAULTS = {
       :global_options => {
         :param_names  => {                                      # param names
-          :page                         => :page,
           :per_page                     => :per_page,
           :sort                         => :sort,
         },
@@ -29,8 +28,8 @@ module SmartListing
         :paginate                       => true,                        # allow pagination
         :memorize_per_page              => false,
         :page_sizes                     => DEFAULT_PAGE_SIZES.dup,      # set available page sizes array
-        :kaminari_options               => {:theme => "smart_listing"}, # Kaminari's paginate helper options
-        :sort_dirs                      => [nil, "asc", "desc"],        # Default sorting directions cycle of sortables
+        :pagy_options                   => {:theme => 'smart_listing/pagination'}, # Pagy's paginate helper options
+        :sort_dirs                      => [nil, 'asc', 'desc'],        # Default sorting directions cycle of sortables
         :remote                         => true,                        # Default remote mode
       },
       :constants => {

@@ -1,3 +1,5 @@
+include Pagy::Frontend
+
 module SmartListing
   module Helper
     module ControllerExtensions
@@ -45,8 +47,9 @@ module SmartListing
       end
 
       def paginate options = {}
-        if @smart_listing.collection.respond_to? :current_page
-          @template.paginate @smart_listing.collection, {:remote => @smart_listing.remote?, :param_name => @smart_listing.param_name(:page)}.merge(@smart_listing.kaminari_options)
+        Rails.logger.info " @smart_listing.pagy_collection.series => #{ @smart_listing.pagy_collection.series}"
+        if @smart_listing.pagy_collection.series.size > 1
+          render(partial: @smart_listing.pagy_options[:theme], locals: {pagy: @smart_listing.pagy_collection}).html_safe
         end
       end
 
@@ -76,7 +79,7 @@ module SmartListing
 
       def pagination_per_page_link page
         if @smart_listing.per_page.to_i != page
-          url = @template.url_for(@smart_listing.params.merge(@smart_listing.all_params(:per_page => page, :page => 1)))
+          url = @template.url_for(@smart_listing.params.merge(:page => 1).merge(@smart_listing.all_params(:per_page => page)))
         end
 
         locals = {
